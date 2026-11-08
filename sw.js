@@ -3,7 +3,7 @@
    - 다이어리 프로그램 파일만 휴대폰에 보관해요. (기록은 원래대로 기기 안 저장소에)
    - 새 버전을 올리면 다음에 열 때 자동으로 바뀌어요.
    ========================================================= */
-const VERSION = 'mmsd-v4';
+const VERSION = 'mmsd-v6';
 const FILES = [
   './', './index.html', './manifest.webmanifest', './style.css', './app.js',
   './icon-192.png', './icon-512.png', './icon-maskable-512.png'

@@ -515,6 +515,36 @@ MMSD.accounts = (function () {
     if (avatar) acc.avatar = avatar;
     save(acc);
   }
+  /* 백업 파일에 담을 계정 정보 (비밀번호·복구 답은 해시만) */
+  function exportInfo() {
+    const a = current;
+    if (!a || !a.hash) return null;
+    return { username: a.username, name: a.name, avatar: a.avatar, iter: a.iter, salt: a.salt, hash: a.hash, q: a.q, aSalt: a.aSalt, aHash: a.aHash };
+  }
+  /* 백업 파일 속 계정을 이 기기에 만들기 (그 계정의 비밀번호를 알아야 해요) */
+  async function importInfo(info, pw) {
+    if (!supported()) throw MMSD.AppError('ACCOUNT', '이 브라우저에서는 계정 기능을 쓸 수 없어요.');
+    if (!info || !info.username || !info.hash || !info.salt) {
+      throw MMSD.AppError('NO_ACCOUNT', '이 백업 파일에는 계정 정보가 없어요. (계정 담기 기능 전에 만든 백업이에요) 새 계정을 만든 뒤 설정 → 📦 백업·복원에서 복원해 주세요.');
+    }
+    const username = normId(info.username);
+    if (find(username)) {
+      throw MMSD.AppError('ID', '이 기기에 이미 "' + username + '" 계정이 있어요. 그 계정으로 로그인한 뒤 설정 → 📦 백업·복원에서 "합치기"로 복원해 주세요.');
+    }
+    if ((await derive(String(pw || ''), info.salt, info.iter || ITER)) !== info.hash) {
+      throw MMSD.AppError('WRONG', '비밀번호가 맞지 않아요. 백업을 만들 때 쓰던 그 계정의 비밀번호를 적어 주세요.');
+    }
+    const id = 'a' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    const acc = {
+      id: id, username: username, name: String(info.name || '').trim() || username, avatar: info.avatar || AVATARS[0],
+      dbName: 'mmsd-diary-' + id, settingsKey: LEGACY_SETTINGS + '.' + id,
+      iter: info.iter || ITER, salt: info.salt, hash: info.hash, q: info.q || '', aSalt: info.aSalt || '', aHash: info.aHash || '',
+      createdAt: new Date().toISOString()
+    };
+    save(acc);
+    return acc;
+  }
+
   /* 계정과 그 계정의 기록 · 사진 · 설정을 이 기기에서 지워요 */
   async function remove(acc) {
     await M.db.destroy(acc.dbName);
@@ -600,7 +630,15 @@ MMSD.accounts = (function () {
                 field('pw2', '비밀번호 확인', 'password', 'autocomplete="new-password" minlength="4" required') +
                 qPicker() + field('a', '복구 답 (비밀번호를 잊었을 때 써요)', 'text', 'autocomplete="off" required')) +
             '<button class="btn primary" type="submit">' + (mig ? '내 계정 만들고 기록 이어가기' : '계정 만들기') + '</button></form>' +
-          (accs.length ? '<button type="button" class="link-btn" data-go="login">← 로그인으로</button>' : '');
+          '<div class="lock-links">' + (accs.length ? '<button type="button" class="link-btn" data-go="login">← 로그인으로</button>' : '<span></span>') +
+          '<button type="button" class="link-btn" data-go="import">📦 백업 파일로 계정 가져오기</button></div>';
+      } else if (mode === 'import') {
+        inner = '<p class="lock-lead">📦 다른 기기에서 만든 <b>전체 백업 파일</b>로 계정과 기록을 한 번에 가져와요.</p>' +
+          '<form data-f="import" class="lock-col">' +
+            '<label class="flabel">백업 파일 (.zip)<input class="inp" data-n="file" type="file" accept=".zip,.json,application/zip,application/json" required></label>' +
+            field('pw', '그 계정의 비밀번호', 'password', 'autocomplete="current-password" required') +
+            '<button class="btn primary" type="submit">계정 가져오기</button></form>' +
+          '<button type="button" class="link-btn" data-go="' + (accs.length ? 'login' : 'create') + '">← 돌아가기</button>';
       } else if (mode === 'forgot') {
         inner = forgotAcc
           ? '<p>복구 질문에 답해 주세요.</p><p class="lock-q">❓ ' + esc(forgotAcc.q) + '</p>' +
@@ -629,7 +667,8 @@ MMSD.accounts = (function () {
             field('pw', '비밀번호', 'password', 'autocomplete="current-password" required') +
             '<button class="btn primary" type="submit">열기</button></form>' +
           '<div class="lock-links"><button type="button" class="link-btn" data-go="forgot">비밀번호를 잊었어요</button>' +
-          '<button type="button" class="link-btn" data-go="create">+ 새 계정 만들기</button></div>';
+          '<button type="button" class="link-btn" data-go="create">+ 새 계정 만들기</button></div>' +
+          '<button type="button" class="link-btn" data-go="import">📦 백업 파일로 계정 가져오기</button>';
       }
       box.innerHTML = '<div class="lock-card card tape"><div class="lock-emoji" aria-hidden="true">📒</div>' +
         '<h1>MY MIDDLE<br>SCHOOL DIARY</h1>' + inner + '<p class="lock-msg" role="alert"></p>' +
@@ -676,6 +715,25 @@ MMSD.accounts = (function () {
           }
           const q = v('q') === '직접 입력할게요' ? v('qOwn') : v('q');
           const acc = await create({ username: v('username'), name: v('name'), pw: v('pw'), pw2: v('pw2'), q: q, a: v('a'), legacy: !!mig, legacyLock: legacyLock });
+          return open(acc);
+        }
+        if (f.dataset.f === 'import') {
+          const file = box.querySelector('[data-n="file"]').files[0];
+          if (!file) throw MMSD.AppError('FILE', '백업 파일을 골라 주세요.');
+          msg('백업 파일을 읽는 중…');
+          const opened = await M.backup.open(file);
+          const acc = await importInfo(opened.data.account, v('pw'));
+          try {
+            enter(acc);
+            await M.db.open();
+            await M.backup.restore(opened, 'replace', function (i, n) { msg('사진을 옮기는 중… ' + i + ' / ' + n); });
+            M.db.close();
+          } catch (err2) {
+            current = null;
+            M.db.close();
+            await remove(acc).catch(function () {});
+            throw err2;
+          }
           return open(acc);
         }
         if (f.dataset.f === 'who') {
@@ -746,6 +804,7 @@ MMSD.accounts = (function () {
     current: function () { return current; },
     isLocked: function () { return !current; },
     list: list, supported: supported, check: check,
+    exportInfo: exportInfo, importInfo: importInfo,
     create: create, changePassword: changePassword, changeQuestion: changeQuestion, rename: rename, remove: remove,
     gate: gate, logout: logout, refreshUI: refreshUI
   };
@@ -5325,7 +5384,7 @@ MMSD.themes = (function () {
           '<button type="button" class="btn" id="bkJson">📝 기록만 백업 (사진 제외)<small>JSON 파일 · 작고 빨라요</small></button>' +
         '</div><p class="fhint" id="bkProg"></p>' +
         '<ul class="todo-list"><li>기록 ' + stats.records + '개, 휴지통 ' + stats.trashed + '개, 사진 ' + stats.images + '장, 동영상 ' + stats.videos + '개가 들어가요.</li>' +
-          '<li>한 백업 파일은 4GB까지 만들 수 있어요.</li><li>🔒 계정 아이디·비밀번호는 백업에 들어가지 않아요. 이 계정의 기록만 담겨요.</li></ul>' +
+          '<li>한 백업 파일은 4GB까지 만들 수 있어요.</li><li>👤 계정(아이디·이름·비밀번호)도 함께 담겨요. 다른 기기의 로그인 화면에서 <b>"📦 백업 파일로 계정 가져오기"</b>를 누르면 계정과 기록이 한 번에 옮겨져요.</li><li>🔒 비밀번호는 그대로 담기지 않고 알아볼 수 없게 바꾼 값만 담겨요. 그래도 백업 파일에는 일기가 다 들어 있으니 남에게 주지 마세요.</li></ul>' +
       '</section>' +
       '<section class="card tape-left"><h2>♻️ 백업 파일로 복원하기</h2>' +
         '<p class="desc">이 다이어리에서 만든 백업 파일(.zip 또는 .json)을 고르면, 복원하기 전에 내용을 먼저 보여 줘요.</p>' +
@@ -5687,10 +5746,19 @@ MMSD.zip = (function () {
     for (let i = 0; i < bytes.length; i++) c = TABLE[(c ^ bytes[i]) & 0xFF] ^ (c >>> 8);
     return (c ^ 0xFFFFFFFF) >>> 0;
   }
-  async function blobCrc(blob) {
-    let c = 0;
-    for (let o = 0; o < blob.size; o += CHUNK) c = crc32(new Uint8Array(await blob.slice(o, o + CHUNK).arrayBuffer()), c);
-    return c;
+  /* 파일 내용을 끝까지 읽으면서 CRC 계산. 읽은 내용 그대로를 ZIP에 담아서,
+     브라우저가 크기를 잘못 알려 주는 경우(아이패드 사파리)에도 ZIP이 망가지지 않게 해요. */
+  async function readAll(blob) {
+    let c = 0, got = 0;
+    const chunks = [];
+    for (let o = 0; o < blob.size; o += CHUNK) {
+      const part = new Uint8Array(await blob.slice(o, o + CHUNK).arrayBuffer());
+      if (!part.length) break;
+      chunks.push(part);
+      got += part.length;
+      c = crc32(part, c);
+    }
+    return { crc: c, size: got, data: new Blob(chunks) };
   }
   function dos(d) {
     return {
@@ -5705,10 +5773,10 @@ MMSD.zip = (function () {
     const t = dos(new Date());
 
     this.add = async function (name, data) {
-      const blob = data instanceof Blob ? data : new Blob([typeof data === 'string' ? enc.encode(data) : data]);
-      const crc = await blobCrc(blob);
+      const src = data instanceof Blob ? data : new Blob([typeof data === 'string' ? enc.encode(data) : data]);
+      const r = await readAll(src);
+      const crc = r.crc, size = r.size, blob = r.data;
       const nameB = enc.encode(name);
-      const size = blob.size;
       if (offset + 30 + nameB.length + size > LIMIT) throw MMSD.AppError('ZIP_LIMIT', '백업 파일이 4GB를 넘어요. 큰 동영상을 줄이거나 "기록만 백업"을 이용해 주세요.');
       const h = new DataView(new ArrayBuffer(30));
       h.setUint32(0, 0x04034b50, true); h.setUint16(4, 20, true); h.setUint16(6, 0x0800, true); h.setUint16(8, 0, true);
@@ -5787,7 +5855,8 @@ MMSD.zip = (function () {
    - 복원: 미리보기 → "전부 교체" 또는 "합치기"
      합치기 규칙: 같은 기록(같은 ID)이 있으면 더 최근에 수정된 쪽을 남김
                   같은 사진(같은 파일 내용)이 있으면 하나만 남김
-   - 잠금 비밀번호는 백업에 넣지 않음
+   - 계정(아이디·이름·비밀번호)도 함께 담아서, 다른 기기에서 "백업 파일로 계정 가져오기"를 할 수 있음
+     비밀번호와 복구 답은 그대로가 아니라 바꿔 쓴 값(해시)만 담김
    ========================================================= */
 MMSD.backup = (function () {
   const M = window.MMSD;
@@ -5821,6 +5890,7 @@ MMSD.backup = (function () {
     const data = {
       app: APP, format: FORMAT, exportedAt: new Date().toISOString(), withMedia: !!withMedia,
       settings: { defaultTheme: s.defaultTheme, pageThemes: s.pageThemes, mode: s.mode, fontScale: s.fontScale },
+      account: M.accounts.exportInfo(),
       meta: meta.filter(function (m) { return m.key !== 'lastBackup'; }),
       records: records,
       media: media.map(function (m) {
@@ -6382,7 +6452,7 @@ MMSD.printer = (function () {
 /* 화면 이동(라우터) · 사이드바 · 테마 적용 */
 (function () {
   const M = window.MMSD;
-  M.VERSION = '2026-11-08 (3)';
+  M.VERSION = '2026-11-08 (5)';
   const view = document.getElementById('view');
   const nav = document.getElementById('nav');
   const sidebar = document.getElementById('sidebar');
