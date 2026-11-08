@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="ko" data-theme="pink">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>MY MIDDLE SCHOOL DIARY</title>
+  <!-- 웹앱(홈 화면에 설치) 설정 -->
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="theme-color" content="#f4a3be">
+  <link rel="icon" type="image/png" href="icon-192.png">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="중학 다이어리">
+  <!-- 외부 서버에 아무것도 요청하지 않습니다 (폰트·라이브러리 모두 로컬) -->
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar" id="sidebar" aria-label="메뉴">
+      <div class="brand">
+        <span class="brand-tape" aria-hidden="true"></span>
+        <div class="brand-title">MY MIDDLE<br>SCHOOL DIARY</div>
+        <div class="brand-sub">중학생활 3년 스크랩북 ✏️</div>
+      </div>
+      <form class="side-search" id="sideSearch" role="search">
+        <input class="inp" type="search" placeholder="🔍 모든 기록 검색" aria-label="모든 기록 검색">
+      </form>
+      <nav aria-label="주요 메뉴">
+        <ul class="nav" id="nav"></ul>
+      </nav>
+      <button type="button" class="btn install-btn" id="installBtn" hidden>📲 앱으로 설치하기</button>
+      <div class="acct-box" id="acctBox" hidden>
+        <span class="acct-name" id="acctName"></span>
+        <button type="button" class="btn small" id="logoutBtn">👋 로그아웃</button>
+      </div>
+      <p class="side-foot">🔒 모든 기록은 이 기기에만 저장돼요</p>
+    </aside>
+
+    <div class="overlay" id="overlay" aria-hidden="true"></div>
+
+    <div class="main-wrap">
+      <header class="topbar">
+        <button class="menu-btn" id="menuBtn" type="button" aria-label="메뉴 열기" aria-controls="sidebar" aria-expanded="false">☰</button>
+        <span class="topbar-title" id="topbarTitle">홈</span>
+        <a class="menu-btn top-search" href="#/search" aria-label="모든 기록 검색">🔍</a>
+      </header>
+      <main class="main" id="view" tabindex="-1"></main>
+    </div>
+  </div>
+
+  <div class="save-pill" id="saveStatus" role="status" aria-live="polite" hidden></div>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script src="app.js"></script>
+</body>
+</html>

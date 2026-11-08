@@ -1,0 +1,17 @@
+{
+  "name": "중학생활 다이어리",
+  "short_name": "중학 다이어리",
+  "description": "중학교 3년의 일상·성장·우정·추억을 담는 나만의 스크랩북 다이어리 (기록은 내 기기에만 저장돼요)",
+  "lang": "ko",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#fdeef3",
+  "theme_color": "#f4a3be",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
